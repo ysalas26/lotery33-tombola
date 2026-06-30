@@ -14,17 +14,17 @@ Mejoras sobre v1.0:
 
 USO
 ───
-# Entrenar con todo el historial (primera vez)
-python tombola_train_v11.py --sorteo N --reset
+# Primera vez — reset con TODOS los resultados disponibles
+python tombola_train_v11.py --sorteo N --reset --verbose 500
 
-# Solo últimos 500 sorteos con verbose cada 100 rondas
-python tombola_train_v11.py --sorteo N --reset --last 500 --verbose 100
+# Actualización incremental — agrega nuevos sorteos, recalcula desde historial completo
+python tombola_train_v11.py --sorteo N --verbose 50
 
-# Rango de fechas específico
+# Rango de fechas específico (uso excepcional)
 python tombola_train_v11.py --sorteo N --from 2024-01-01 --to 2026-05-23
 
-# Entrenar vespertina
-python tombola_train_v11.py --sorteo V --reset
+# Vespertina
+python tombola_train_v11.py --sorteo V --reset --verbose 500
 
 REQUIERE
 ────────
@@ -245,9 +245,13 @@ def print_summary(sorteo: str, new_rounds: int, skipped: int,
                   f"precision={prec:.1%}  ({hits}/{pred})")
 
     print()
-    print("  Próximo paso:")
+    print("  Próximos pasos:")
+    print(f"    # Actualización incremental (después de agregar sorteos al CSV):")
+    print(f"    python tombola_train_v11.py --sorteo {sorteo.upper()} --verbose 50")
+    print(f"")
+    print(f"    # Predicción:")
     print(f"    python tombola_predict_v11.py predict --sorteo {sorteo.upper()} \\")
-    print(f"      --dow <0=Lun … 4=Vie>  --numbers <20 números>")
+    print(f"      --date YYYY-MM-DD  --numbers <20 números>")
     print("=" * 62)
     print()
 

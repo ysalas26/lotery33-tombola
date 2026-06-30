@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tombola v1.2</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:#0f172a;color:#f8fafc;padding-bottom:72px}
+.hdr{background:#1e293b;border-bottom:2px solid #334155;padding:14px 20px;position:sticky;top:0;z-index:100}
+.hdr h1{font-size:1.25rem;font-weight:700;color:#fbbf24}
+.hdr .meta{font-size:.75rem;color:#94a3b8;margin-top:3px}
+.hdr .inp{font-size:.7rem;color:#64748b;font-family:monospace;margin-top:2px;word-break:break-all}
+.tabs{display:flex;gap:8px;padding:12px 20px;background:#0f172a;border-bottom:1px solid #1e293b;flex-wrap:wrap}
+.tb{padding:7px 16px;border-radius:8px;border:2px solid #334155;cursor:pointer;font-weight:600;font-size:.8rem;background:#1e293b;color:#94a3b8;transition:.15s}
+.tb.on[data-l="1"]{border-color:#fbbf24;color:#fbbf24;background:#422006}
+.tb.on[data-l="2"]{border-color:#94a3b8;color:#e2e8f0;background:#1e293b}
+.tb.on[data-l="3"]{border-color:#cd7c2f;color:#cd7c2f;background:#321d05}
+.lc{display:none;padding:16px 20px}
+.lc.on{display:block}
+.lh{font-size:1.1rem;font-weight:700;margin-bottom:14px;color:#fbbf24}
+.gg{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.gc{background:#1e293b;border-radius:10px;overflow:hidden}
+.gh{padding:9px 10px;cursor:pointer;display:flex;align-items:center;gap:7px}
+.gh:hover{filter:brightness(1.12)}
+.gh .em{font-size:1.1rem}
+.gh .gl{font-weight:700;font-size:.8rem}
+.gh .gd{font-size:.65rem;color:#94a3b8}
+.gn{padding:10px;display:flex;flex-direction:column;gap:6px}
+.nc{display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:7px;cursor:pointer;background:#0f172a;border:2px solid transparent;transition:.12s}
+.nc:hover{border-color:#475569}
+.nc.sel{border-color:#fbbf24!important}
+.nc .nb{font-size:1rem;font-weight:700;font-family:monospace;width:26px;text-align:center}
+.nc .sb{font-size:.65rem;padding:2px 5px;border-radius:3px;font-family:monospace}
+.sh{background:#78350f;color:#fef3c7}
+.so{background:#1e3a8a;color:#bfdbfe}
+.sw{background:#374151;color:#9ca3af}
+.sec{background:#1e293b;border-radius:10px;padding:14px;margin-bottom:12px}
+.st{font-size:.75rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
+table.vt{width:100%;border-collapse:collapse}
+table.vt th{padding:7px 8px;font-size:.7rem;color:#94a3b8;border-bottom:1px solid #334155}
+table.vt td{padding:5px 6px;border-bottom:1px solid #0f172a;text-align:center}
+.vn{display:inline-flex;align-items:center;gap:3px;padding:3px 7px;border-radius:6px;cursor:pointer;font-family:monospace;font-weight:700;font-size:.85rem;border:1px solid transparent}
+.vn.sel{border-color:#fbbf24}
+.cg{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.cc{background:#0f172a;border-radius:8px;padding:11px;cursor:pointer}
+.cc:hover{background:#162032}
+.cl{font-size:.7rem;font-weight:700;color:#64748b;display:flex;justify-content:space-between;margin-bottom:7px}
+.cn{display:flex;gap:5px;flex-wrap:wrap}
+.cb{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:7px;font-family:monospace;font-weight:700;font-size:.8rem;cursor:pointer;border:2px solid transparent}
+.cb.sel{border-color:#fbbf24}
+.qg{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.qc{background:#0f172a;border-radius:8px;padding:11px;cursor:pointer;border:1px solid #334155}
+.qc.main{border-color:#fbbf24}
+.qc:hover{background:#162032}
+.ql{font-size:.75rem;font-weight:700;margin-bottom:3px}
+.qc.main .ql{color:#fbbf24}
+.qlift{font-size:.65rem;color:#64748b;margin-bottom:7px}
+.qn{display:flex;gap:5px}
+.qb{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:#1e3a8a;font-family:monospace;font-weight:700;font-size:.85rem;cursor:pointer;border:2px solid transparent}
+.qb.sel{border-color:#fbbf24}
+.selpanel{position:fixed;bottom:0;left:0;right:0;background:#1e293b;border-top:2px solid #334155;padding:10px 20px;z-index:200}
+.selinner{display:flex;align-items:center;gap:12px;max-width:1400px;margin:0 auto}
+.selnums{display:flex;gap:5px;flex-wrap:wrap;flex:1}
+.sc2{padding:3px 9px;background:#334155;border-radius:16px;font-family:monospace;font-weight:600;font-size:.8rem;cursor:pointer}
+.sc2:hover{background:#475569}
+.selcnt{font-size:.8rem;color:#94a3b8;white-space:nowrap}
+.btn{padding:7px 14px;border-radius:7px;border:none;cursor:pointer;font-weight:600;font-size:.8rem}
+.bcl{background:#374151;color:#f8fafc}
+.bcp{background:#1d4ed8;color:#fff}
+.btn:hover{filter:brightness(1.1)}
+.resto{padding:16px 20px;color:#475569;font-size:.8rem}
+@media(max-width:800px){.gg{grid-template-columns:repeat(2,1fr)}.cg,.qg{grid-template-columns:1fr}}
+@media print{.selpanel,.tabs{display:none}.lc{display:block!important}}
+</style>
+</head>
+<body>
+<div class="hdr">
+  <h1 id="h-title"></h1>
+  <div class="meta" id="h-meta"></div>
+  <div class="inp" id="h-inp"></div>
+</div>
+<div class="tabs" id="tabs"></div>
+<div id="layers"></div>
+<div class="resto" id="resto"></div>
+<div class="selpanel">
+  <div class="selinner">
+    <div class="selnums" id="seld"><span style="color:#475569">Click en cualquier número para seleccionarlo</span></div>
+    <span class="selcnt" id="selcnt">0 / 20</span>
+    <button class="btn bcl" onclick="clearSel()">Limpiar</button>
+    <button class="btn bcp" onclick="copySel()">Copiar</button>
+  </div>
+</div>
+<script>
+const D = {"sorteo": "N", "sorteo_name": "Nocturna", "date": "2026-06-27", "dow": "Sábado", "input": ["11", "16", "19", "21", "26", "36", "37", "42", "43", "46", "58", "64", "71", "72", "73", "77", "83", "88", "97", "98"], "rondas": 5754, "layers": [{"num": 1, "name": "PRINCIPAL", "groups": {"A": [{"num": "28", "score": 1.143}, {"num": "14", "score": 1.14}, {"num": "76", "score": 1.114}, {"num": "31", "score": 1.095}, {"num": "11", "score": 1.028}, {"num": "53", "score": 1.0}], "B": [{"num": "30", "score": 0.97}, {"num": "93", "score": 0.967}, {"num": "78", "score": 0.951}, {"num": "44", "score": 0.94}, {"num": "72", "score": 0.791}, {"num": "64", "score": 0.93}], "C": [{"num": "81", "score": 0.923}, {"num": "48", "score": 0.922}, {"num": "63", "score": 0.92}, {"num": "36", "score": 0.909}, {"num": "21", "score": 0.905}, {"num": "65", "score": 0.869}], "D": [{"num": "62", "score": 0.853}, {"num": "07", "score": 0.849}, {"num": "98", "score": 0.846}, {"num": "02", "score": 0.825}, {"num": "74", "score": 0.824}, {"num": "50", "score": 0.814}]}, "verticals": [{"A": {"num": "28", "score": 1.143}, "B": {"num": "30", "score": 0.97}, "C": {"num": "81", "score": 0.923}, "D": {"num": "62", "score": 0.853}}, {"A": {"num": "14", "score": 1.14}, "B": {"num": "93", "score": 0.967}, "C": {"num": "48", "score": 0.922}, "D": {"num": "07", "score": 0.849}}, {"A": {"num": "76", "score": 1.114}, "B": {"num": "78", "score": 0.951}, "C": {"num": "63", "score": 0.92}, "D": {"num": "98", "score": 0.846}}, {"A": {"num": "31", "score": 1.095}, "B": {"num": "44", "score": 0.94}, "C": {"num": "36", "score": 0.909}, "D": {"num": "02", "score": 0.825}}, {"A": {"num": "11", "score": 1.028}, "B": {"num": "72", "score": 0.791}, "C": {"num": "21", "score": 0.905}, "D": {"num": "74", "score": 0.824}}, {"A": {"num": "53", "score": 1.0}, "B": {"num": "64", "score": 0.93}, "C": {"num": "65", "score": 0.869}, "D": {"num": "50", "score": 0.814}}], "combinados_ab": [{"idx": 1, "nums": [{"num": "28", "score": 1.143}, {"num": "14", "score": 1.14}, {"num": "30", "score": 0.97}, {"num": "93", "score": 0.967}]}, {"idx": 2, "nums": [{"num": "76", "score": 1.114}, {"num": "31", "score": 1.095}, {"num": "78", "score": 0.951}, {"num": "44", "score": 0.94}]}, {"idx": 3, "nums": [{"num": "11", "score": 1.028}, {"num": "53", "score": 1.0}, {"num": "72", "score": 0.791}, {"num": "64", "score": 0.93}]}], "combinados_cd": [{"idx": 4, "nums": [{"num": "81", "score": 0.923}, {"num": "48", "score": 0.922}, {"num": "62", "score": 0.853}, {"num": "07", "score": 0.849}]}, {"idx": 5, "nums": [{"num": "63", "score": 0.92}, {"num": "36", "score": 0.909}, {"num": "98", "score": 0.846}, {"num": "02", "score": 0.825}]}, {"idx": 6, "nums": [{"num": "21", "score": 0.905}, {"num": "65", "score": 0.869}, {"num": "74", "score": 0.824}, {"num": "50", "score": 0.814}]}], "cooccur": [{"label": "CG1", "nums": ["28", "14", "76", "31"], "lift": 1.0, "is_main": true}, {"label": "CG2", "nums": ["11", "53", "30", "93"], "lift": 1.006, "is_main": false}, {"label": "CG3", "nums": ["78", "44", "64", "63"], "lift": 1.014, "is_main": false}]}, {"num": 2, "name": "SECUNDARIA", "groups": {"A": [{"num": "51", "score": 0.844}, {"num": "12", "score": 0.788}, {"num": "15", "score": 0.764}, {"num": "49", "score": 0.756}, {"num": "40", "score": 0.747}, {"num": "77", "score": 0.735}], "B": [{"num": "04", "score": 0.703}, {"num": "84", "score": 0.701}, {"num": "20", "score": 0.645}, {"num": "27", "score": 0.626}, {"num": "97", "score": 0.612}, {"num": "75", "score": 0.611}], "C": [{"num": "26", "score": 0.582}, {"num": "61", "score": 0.579}, {"num": "83", "score": 0.567}, {"num": "52", "score": 0.566}, {"num": "66", "score": 0.565}, {"num": "70", "score": 0.562}], "D": [{"num": "80", "score": 0.562}, {"num": "73", "score": 0.544}, {"num": "99", "score": 0.543}, {"num": "38", "score": 0.538}, {"num": "92", "score": 0.536}, {"num": "41", "score": 0.534}]}, "verticals": [{"A": {"num": "51", "score": 0.844}, "B": {"num": "04", "score": 0.703}, "C": {"num": "26", "score": 0.582}, "D": {"num": "80", "score": 0.562}}, {"A": {"num": "12", "score": 0.788}, "B": {"num": "84", "score": 0.701}, "C": {"num": "61", "score": 0.579}, "D": {"num": "73", "score": 0.544}}, {"A": {"num": "15", "score": 0.764}, "B": {"num": "20", "score": 0.645}, "C": {"num": "83", "score": 0.567}, "D": {"num": "99", "score": 0.543}}, {"A": {"num": "49", "score": 0.756}, "B": {"num": "27", "score": 0.626}, "C": {"num": "52", "score": 0.566}, "D": {"num": "38", "score": 0.538}}, {"A": {"num": "40", "score": 0.747}, "B": {"num": "97", "score": 0.612}, "C": {"num": "66", "score": 0.565}, "D": {"num": "92", "score": 0.536}}, {"A": {"num": "77", "score": 0.735}, "B": {"num": "75", "score": 0.611}, "C": {"num": "70", "score": 0.562}, "D": {"num": "41", "score": 0.534}}], "combinados_ab": [{"idx": 1, "nums": [{"num": "51", "score": 0.844}, {"num": "12", "score": 0.788}, {"num": "04", "score": 0.703}, {"num": "84", "score": 0.701}]}, {"idx": 2, "nums": [{"num": "15", "score": 0.764}, {"num": "49", "score": 0.756}, {"num": "20", "score": 0.645}, {"num": "27", "score": 0.626}]}, {"idx": 3, "nums": [{"num": "40", "score": 0.747}, {"num": "77", "score": 0.735}, {"num": "97", "score": 0.612}, {"num": "75", "score": 0.611}]}], "combinados_cd": [{"idx": 4, "nums": [{"num": "26", "score": 0.582}, {"num": "61", "score": 0.579}, {"num": "80", "score": 0.562}, {"num": "73", "score": 0.544}]}, {"idx": 5, "nums": [{"num": "83", "score": 0.567}, {"num": "52", "score": 0.566}, {"num": "99", "score": 0.543}, {"num": "38", "score": 0.538}]}, {"idx": 6, "nums": [{"num": "66", "score": 0.565}, {"num": "70", "score": 0.562}, {"num": "92", "score": 0.536}, {"num": "41", "score": 0.534}]}], "cooccur": [{"label": "CG1", "nums": ["51", "12", "15", "49"], "lift": 1.007, "is_main": true}, {"label": "CG2", "nums": ["40", "77", "04", "84"], "lift": 1.001, "is_main": false}, {"label": "CG3", "nums": ["20", "27", "97", "75"], "lift": 1.007, "is_main": false}]}, {"num": 3, "name": "TERCIARIA", "groups": {"A": [{"num": "87", "score": 0.781}, {"num": "82", "score": 0.694}, {"num": "19", "score": 0.602}, {"num": "79", "score": 0.505}, {"num": "69", "score": 0.49}, {"num": "59", "score": 0.49}], "B": [{"num": "90", "score": 0.467}, {"num": "13", "score": 0.464}, {"num": "34", "score": 0.444}, {"num": "88", "score": 0.437}, {"num": "94", "score": 0.425}, {"num": "23", "score": 0.142}], "C": [{"num": "60", "score": 0.404}, {"num": "47", "score": 0.398}, {"num": "55", "score": 0.393}, {"num": "85", "score": 0.382}, {"num": "37", "score": 0.379}, {"num": "68", "score": 0.359}], "D": [{"num": "03", "score": 0.35}, {"num": "57", "score": 0.323}, {"num": "91", "score": 0.317}, {"num": "39", "score": 0.315}, {"num": "06", "score": 0.297}, {"num": "56", "score": 0.297}]}, "verticals": [{"A": {"num": "87", "score": 0.781}, "B": {"num": "90", "score": 0.467}, "C": {"num": "60", "score": 0.404}, "D": {"num": "03", "score": 0.35}}, {"A": {"num": "82", "score": 0.694}, "B": {"num": "13", "score": 0.464}, "C": {"num": "47", "score": 0.398}, "D": {"num": "57", "score": 0.323}}, {"A": {"num": "19", "score": 0.602}, "B": {"num": "34", "score": 0.444}, "C": {"num": "55", "score": 0.393}, "D": {"num": "91", "score": 0.317}}, {"A": {"num": "79", "score": 0.505}, "B": {"num": "88", "score": 0.437}, "C": {"num": "85", "score": 0.382}, "D": {"num": "39", "score": 0.315}}, {"A": {"num": "69", "score": 0.49}, "B": {"num": "94", "score": 0.425}, "C": {"num": "37", "score": 0.379}, "D": {"num": "06", "score": 0.297}}, {"A": {"num": "59", "score": 0.49}, "B": {"num": "23", "score": 0.142}, "C": {"num": "68", "score": 0.359}, "D": {"num": "56", "score": 0.297}}], "combinados_ab": [{"idx": 1, "nums": [{"num": "87", "score": 0.781}, {"num": "82", "score": 0.694}, {"num": "90", "score": 0.467}, {"num": "13", "score": 0.464}]}, {"idx": 2, "nums": [{"num": "19", "score": 0.602}, {"num": "79", "score": 0.505}, {"num": "34", "score": 0.444}, {"num": "88", "score": 0.437}]}, {"idx": 3, "nums": [{"num": "69", "score": 0.49}, {"num": "59", "score": 0.49}, {"num": "94", "score": 0.425}, {"num": "23", "score": 0.142}]}], "combinados_cd": [{"idx": 4, "nums": [{"num": "60", "score": 0.404}, {"num": "47", "score": 0.398}, {"num": "03", "score": 0.35}, {"num": "57", "score": 0.323}]}, {"idx": 5, "nums": [{"num": "55", "score": 0.393}, {"num": "85", "score": 0.382}, {"num": "91", "score": 0.317}, {"num": "39", "score": 0.315}]}, {"idx": 6, "nums": [{"num": "37", "score": 0.379}, {"num": "68", "score": 0.359}, {"num": "06", "score": 0.297}, {"num": "56", "score": 0.297}]}], "cooccur": [{"label": "CG1", "nums": ["87", "82", "19", "79"], "lift": 1.0, "is_main": true}, {"label": "CG2", "nums": ["69", "59", "90", "13"], "lift": 1.0, "is_main": false}, {"label": "CG3", "nums": ["34", "88", "94", "60"], "lift": 1.01, "is_main": false}]}], "resto": ["17", "08", "01", "96", "71", "09", "58", "45", "18", "46", "43", "10", "25", "29", "95", "86", "32", "54", "35", "16", "67", "42", "33", "89", "00", "05", "24", "22"]};
+const sel = new Set();
+
+const GBG  = {A:'#7c2d12',B:'#1e3a5f',C:'#064e3b',D:'#3b1f6e'};
+const GBD  = {A:'#f97316',B:'#60a5fa',C:'#34d399',D:'#a78bfa'};
+const GEM  = {A:'🥇',B:'🥈',C:'🎯',D:'🔵'};
+const GDC  = {A:'máxima confianza',B:'alta confianza',C:'confianza media',D:'confianza base'};
+
+function scl(s){ return s>=1.5?'sh':s>=1.05?'so':'sw'; }
+function smk(s){ return s>=1.5?'★':s<1.05?'⚠':''; }
+
+function tog(n){
+  sel.has(n)?sel.delete(n):sel.add(n);
+  document.querySelectorAll(`[data-n="${n}"]`).forEach(e=>e.classList.toggle('sel',sel.has(n)));
+  renderSel();
+}
+function togGroup(nums){
+  const all=nums.every(n=>sel.has(n));
+  nums.forEach(n=>{all?sel.delete(n):sel.add(n);
+    document.querySelectorAll(`[data-n="${n}"]`).forEach(e=>e.classList.toggle('sel',sel.has(n)));});
+  renderSel();
+}
+function renderSel(){
+  const d=document.getElementById('seld'),c=document.getElementById('selcnt');
+  c.textContent=sel.size+' / 20';
+  if(!sel.size){d.innerHTML='<span style="color:#475569">Click en cualquier número para seleccionarlo</span>';return;}
+  d.innerHTML=[...sel].sort().map(n=>`<span class="sc2" onclick="tog('${n}')">${n}</span>`).join('');
+}
+function clearSel(){
+  sel.forEach(n=>document.querySelectorAll(`[data-n="${n}"]`).forEach(e=>e.classList.remove('sel')));
+  sel.clear();renderSel();
+}
+function copySel(){
+  navigator.clipboard.writeText([...sel].sort().join(' ')).then(()=>{
+    const b=document.querySelector('.bcp');b.textContent='✓ Copiado';
+    setTimeout(()=>b.textContent='Copiar',1600);
+  });
+}
+function showLayer(n){
+  document.querySelectorAll('.lc').forEach(e=>e.classList.remove('on'));
+  document.querySelectorAll('.tb').forEach(e=>e.classList.remove('on'));
+  document.getElementById('l'+n).classList.add('on');
+  document.querySelector(`.tb[data-l="${n}"]`).classList.add('on');
+}
+
+function numChip(item,g){
+  const sc=scl(item.score),mk=smk(item.score);
+  return `<div class="nc" data-n="${item.num}" onclick="tog('${item.num}')">
+    <span class="nb">${item.num}</span>
+    <span class="sb ${sc}">${item.score.toFixed(3)} ${mk}</span>
+  </div>`;
+}
+function comboNum(item){
+  const sc=scl(item.score);
+  const bg=sc==='sh'?'#78350f':sc==='so'?'#1e3a8a':'#374151';
+  return `<div class="cb" data-n="${item.num}" style="background:${bg}" onclick="tog('${item.num}')">${item.num}<sup style="font-size:.55rem">${smk(item.score)}</sup></div>`;
+}
+
+function renderLayer(lay){
+  const G=['A','B','C','D'];
+  // Groups
+  let gg=`<div class="gg">`;
+  G.forEach(g=>{
+    const nums=lay.groups[g].map(x=>x.num);
+    gg+=`<div class="gc">
+      <div class="gh" style="background:${GBG[g]}" onclick="togGroup(${JSON.stringify(nums)})">
+        <span class="em">${GEM[g]}</span><div><div class="gl">GRUPO ${g}</div><div class="gd">${GDC[g]} — APOSTAR</div></div>
+      </div>
+      <div class="gn">${lay.groups[g].map(x=>numChip(x,g)).join('')}</div>
+    </div>`;
+  });
+  gg+=`</div>`;
+
+  // Verticals
+  let vt=`<div class="sec"><div class="st">Verticales V1–V6 · click fila para seleccionar</div>
+    <table class="vt"><tr><th>V</th>${G.map(g=>`<th>${GEM[g]} ${g}</th>`).join('')}</tr>`;
+  lay.verticals.forEach((row,i)=>{
+    const rn=G.filter(g=>row[g]).map(g=>row[g].num);
+    vt+=`<tr onclick="togGroup(${JSON.stringify(rn)})" style="cursor:pointer"><td style="color:#64748b;font-weight:700">V${i+1}</td>`;
+    G.forEach(g=>{
+      const c=row[g];
+      if(c) vt+=`<td><div class="vn" data-n="${c.num}" style="background:${GBG[g]}33;border-color:${GBG[g]}55">${c.num} <span style="font-size:.6rem;color:#94a3b8">${c.score.toFixed(3)}${smk(c.score)}</span></div></td>`;
+      else vt+=`<td style="color:#334155">—</td>`;
+    });
+    vt+=`</tr>`;
+  });
+  vt+=`</table></div>`;
+
+  function renderCombos(combos,title){
+    let h=`<div class="sec"><div class="st">${title}</div><div class="cg">`;
+    combos.forEach(c=>{
+      const ns=c.nums.map(x=>x.num);
+      const wk=c.nums.filter(x=>x.score<1.05).length;
+      h+=`<div class="cc" onclick="togGroup(${JSON.stringify(ns)})">
+        <div class="cl"><span>C${c.idx} — APOSTAR</span>${wk?`<span style="color:#d97706">${wk}⚠</span>`:''}</div>
+        <div class="cn">${c.nums.map(comboNum).join('')}</div>
+      </div>`;
+    });
+    h+=`</div></div>`;return h;
+  }
+
+  // Co-occurrence
+  let qo=`<div class="sec"><div class="st">Co-Ocurrencia · click grupo para seleccionar</div><div class="qg">`;
+  lay.cooccur.forEach(cg=>{
+    const cls=cg.is_main?'qc main':'qc';
+    qo+=`<div class="${cls}" onclick="togGroup(${JSON.stringify(cg.nums)})">
+      <div class="ql">${cg.label}${cg.is_main?' ★':''}</div>
+      <div class="qlift">lift_avg = ${cg.lift.toFixed(3)}</div>
+      <div class="qn">${cg.nums.map(n=>`<div class="qb" data-n="${n}" onclick="event.stopPropagation();tog('${n}')">${n}</div>`).join('')}</div>
+    </div>`;
+  });
+  qo+=`</div></div>`;
+
+  return `<div id="l${lay.num}" class="lc${lay.num===1?' on':''}">
+    <h2 class="lh">CAPA ${lay.num} — ${lay.name} (24 números)</h2>
+    ${gg}${vt}
+    ${renderCombos(lay.combinados_ab,'Combinados A+B — APOSTAR · click para seleccionar')}
+    ${renderCombos(lay.combinados_cd,'Combinados C+D — APOSTAR · click para seleccionar')}
+    ${qo}
+  </div>`;
+}
+
+// Header
+document.getElementById('h-title').textContent=`🎱 Tombola ${D.sorteo_name.toUpperCase()} — ${D.dow} ${D.date}`;
+document.getElementById('h-meta').textContent=`v1.2 · ${D.rondas} rondas aprendidas`;
+document.getElementById('h-inp').textContent=`Entrada: ${D.input.join(' ')}`;
+
+// Tabs
+const tabL=['1','2','3'];const tabN=['PRINCIPAL','SECUNDARIA','TERCIARIA'];
+document.getElementById('tabs').innerHTML=
+  tabL.map((l,i)=>`<button class="tb${l==='1'?' on':''}" data-l="${l}" onclick="showLayer('${l}')">CAPA ${l} — ${tabN[i]}</button>`).join('');
+
+// Layers
+document.getElementById('layers').innerHTML=D.layers.map(renderLayer).join('');
+
+// Resto
+document.getElementById('resto').innerHTML=
+  `<b style="color:#94a3b8">⚪ RESTO FINAL (${D.resto.length} números)</b><br>
+   <span style="font-family:monospace">${D.resto.join('  ')}</span>`;
+</script>
+</body>
+</html>
