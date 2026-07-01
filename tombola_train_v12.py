@@ -107,16 +107,17 @@ def load_draws(csv_path: str, sorteo: str) -> list[dict]:
 # ──────────────────────────────────────────────
 
 def train(draws: list[dict], transitions: dict, learning: dict,
-          verbose_every: int = 0) -> tuple[dict, int, int, list[int], list[int], list[int]]:
+          verbose_every: int = 0) -> tuple[dict, int, int, list[int], list[int], list[int], list[int]]:
     """
-    Recorre pares (draw[i] → draw[i+1]) y genera historial con 3 capas.
+    Recorre pares (draw[i] → draw[i+1]) y genera historial con 4 capas.
 
     Para cada ronda:
       • Capa 1: predicción con factors (globales / DOW)
       • Capa 2: predicción con factors_l2 sobre el pool restante
       • Capa 3: predicción con factors_l3 sobre el pool restante
+      • Capa 4: predicción con factors_l4 sobre el pool restante
 
-    Recalcula los factores de las 3 capas al final con decay temporal.
+    Recalcula los factores de las 4 capas al final con decay temporal.
     """
     history  = learning["history"]
     factors  = learning["factors"]
@@ -125,6 +126,8 @@ def train(draws: list[dict], transitions: dict, learning: dict,
     b_l2     = learning.get("biases_l2",  biases)
     f_l3     = learning.get("factors_l3", factors)
     b_l3     = learning.get("biases_l3",  biases)
+    f_l4     = learning.get("factors_l4", factors)
+    b_l4     = learning.get("biases_l4",  biases)
 
     # Claves de rondas ya procesadas
     existing = {(h["date"], h.get("sorteo", "?"))
@@ -135,9 +138,10 @@ def train(draws: list[dict], transitions: dict, learning: dict,
     total_hits_l1 = [0] * NUM_GROUPS
     total_hits_l2 = [0] * NUM_GROUPS
     total_hits_l3 = [0] * NUM_GROUPS
+    total_hits_l4 = [0] * NUM_GROUPS
 
     n = len(draws)
-    print(f"\n  Procesando {n - 1} pares (3 capas por ronda)...")
+    print(f"\n  Procesando {n - 1} pares (4 capas por ronda)...")
 
     for i in range(n - 1):
         cur = draws[i]
@@ -174,6 +178,15 @@ def train(draws: list[dict], transitions: dict, learning: dict,
         hl_s3   = dict(learning.get("stats_l3", {}))
         hl_s3["__factors__"] = f_l3
         groups3 = build_groups(ranked3, cur["numbers"], hl_s3)
+        used3   = used2 | _extract_used_from_groups(groups3)
+
+        # ── Capa 4 — factores propios l4 ────────────────────────────────────
+        scores4 = compute_scores_v12(cur["numbers"], transitions, f_l4, b_l4, dow)
+        ranked4 = sorted([(num, scores4[num]) for num in scores4 if num not in used3],
+                         key=lambda x: x[1], reverse=True)
+        hl_s4   = dict(learning.get("stats_l4", {}))
+        hl_s4["__factors__"] = f_l4
+        groups4 = build_groups(ranked4, cur["numbers"], hl_s4)
 
         # ── Evaluación ───────────────────────────────────────────────────────
         actual_set = set(nxt["numbers"])
@@ -195,12 +208,14 @@ def train(draws: list[dict], transitions: dict, learning: dict,
         hpg1, hcum1 = _eval_hits(groups1)
         hpg2, hcum2 = _eval_hits(groups2)
         hpg3, hcum3 = _eval_hits(groups3)
+        hpg4, hcum4 = _eval_hits(groups4)
 
         for j in range(NUM_GROUPS):
             gk = f"elite_{j+1}"
             total_hits_l1[j] += hpg1.get(gk, 0)
             total_hits_l2[j] += hpg2.get(gk, 0)
             total_hits_l3[j] += hpg3.get(gk, 0)
+            total_hits_l4[j] += hpg4.get(gk, 0)
 
         history.append({
             "date":                cur["date"].isoformat(),
@@ -210,6 +225,7 @@ def train(draws: list[dict], transitions: dict, learning: dict,
             "predicted_groups":    _pred(groups1),
             "predicted_groups_l2": _pred(groups2),
             "predicted_groups_l3": _pred(groups3),
+            "predicted_groups_l4": _pred(groups4),
             "actual":              nxt["numbers"],
             "hits_per_group":      hpg1,
             "hits_cumulative":     hcum1,
@@ -217,6 +233,8 @@ def train(draws: list[dict], transitions: dict, learning: dict,
             "hits_cumulative_l2":  hcum2,
             "hits_l3":             hpg3,
             "hits_cumulative_l3":  hcum3,
+            "hits_l4":             hpg4,
+            "hits_cumulative_l4":  hcum4,
         })
         existing.add(key)
         new_rounds += 1
@@ -225,27 +243,30 @@ def train(draws: list[dict], transitions: dict, learning: dict,
             acum1 = hcum1.get(f"elite_{NUM_GROUPS}", 0)
             acum2 = hcum2.get(f"elite_{NUM_GROUPS}", 0)
             acum3 = hcum3.get(f"elite_{NUM_GROUPS}", 0)
+            acum4 = hcum4.get(f"elite_{NUM_GROUPS}", 0)
             print(f"    [{new_rounds:>5}]  {cur['date']}  DOW={dow}  "
-                  f"C1={acum1}/20  C2={acum2}/20  C3={acum3}/20")
+                  f"C1={acum1}/20  C2={acum2}/20  C3={acum3}/20  C4={acum4}/20")
 
-    # ── Recalcular factores de 3 capas ───────────────────────────────────────
-    print(f"\n  Recalculando factores (DECAY={DECAY}) para 3 capas "
+    # ── Recalcular factores de 4 capas ───────────────────────────────────────
+    print(f"\n  Recalculando factores (DECAY={DECAY}) para 4 capas "
           f"desde {len(history)} rondas...")
 
     (new_f,  new_b,  new_s,
      new_f2, new_b2, new_s2,
      new_f3, new_b3, new_s3,
+     new_f4, new_b4, new_s4,
      new_dof, new_dob) = recompute_learning_v12(history)
 
     learning.update({
         "factors":    new_f,   "biases":    new_b,   "stats":    new_s,
         "factors_l2": new_f2,  "biases_l2": new_b2,  "stats_l2": new_s2,
         "factors_l3": new_f3,  "biases_l3": new_b3,  "stats_l3": new_s3,
+        "factors_l4": new_f4,  "biases_l4": new_b4,  "stats_l4": new_s4,
         "dow_factors": new_dof, "dow_biases": new_dob,
         "history":   history,
     })
 
-    return learning, new_rounds, skipped, total_hits_l1, total_hits_l2, total_hits_l3
+    return learning, new_rounds, skipped, total_hits_l1, total_hits_l2, total_hits_l3, total_hits_l4
 
 
 # ──────────────────────────────────────────────
@@ -253,7 +274,7 @@ def train(draws: list[dict], transitions: dict, learning: dict,
 # ──────────────────────────────────────────────
 
 def print_summary(sorteo: str, new_rounds: int, skipped: int,
-                  hits_l1: list, hits_l2: list, hits_l3: list,
+                  hits_l1: list, hits_l2: list, hits_l3: list, hits_l4: list,
                   learning: dict) -> None:
     s_name    = "Nocturna" if sorteo.upper() == "N" else "Vespertina"
     completed = len([h for h in learning["history"] if h.get("actual")])
@@ -271,9 +292,10 @@ def print_summary(sorteo: str, new_rounds: int, skipped: int,
     print()
 
     for layer_num, hits, label in [
-        (1, hits_l1, "Capa 1 PRINCIPAL "),
-        (2, hits_l2, "Capa 2 SECUNDARIA"),
-        (3, hits_l3, "Capa 3 TERCIARIA "),
+        (1, hits_l1, "Capa 1 PRINCIPAL   "),
+        (2, hits_l2, "Capa 2 SECUNDARIA  "),
+        (3, hits_l3, "Capa 3 TERCIARIA   "),
+        (4, hits_l4, "Capa 4 CUATERNARIA "),
     ]:
         print(f"  Aciertos {label} ({new_rounds} rondas nuevas):")
         print(f"  {'Grupo':<10} {'Hits':>6} {'Azar':>7} {'Delta/ronda':>12}")
@@ -291,6 +313,7 @@ def print_summary(sorteo: str, new_rounds: int, skipped: int,
         ("factors",    "stats",    "biases",    "Capa 1"),
         ("factors_l2", "stats_l2", "biases_l2", "Capa 2"),
         ("factors_l3", "stats_l3", "biases_l3", "Capa 3"),
+        ("factors_l4", "stats_l4", "biases_l4", "Capa 4"),
     ]:
         facts = learning.get(fkey, {}); st = learning.get(skey, {})
         bias_ = learning.get(bkey, {})
@@ -364,11 +387,13 @@ def main():
             "stats_l2":    copy.deepcopy(_ds),
             "factors_l3":  copy.deepcopy(_df),  "biases_l3": copy.deepcopy(_db),
             "stats_l3":    copy.deepcopy(_ds),
+            "factors_l4":  copy.deepcopy(_df),  "biases_l4": copy.deepcopy(_db),
+            "stats_l4":    copy.deepcopy(_ds),
             "dow_factors": {str(d): {f"{n:02d}": 1.0 for n in range(100)} for d in range(7)},
             "dow_biases":  {str(d): {f"{n:02d}": 0.0 for n in range(100)} for d in range(7)},
             "history":     [],
         }
-        print("  ⚠ Historial y factores reseteados (3 capas).")
+        print("  ⚠ Historial y factores reseteados (4 capas).")
     else:
         learning = load_learning(sorteo)
         existing = len([h for h in learning["history"] if h.get("actual")])
@@ -392,14 +417,14 @@ def main():
     print(f"  Rango a procesar: {draws[0]['date']} → {draws[-1]['date']}  "
           f"({len(draws) - 1} pares)")
 
-    learning, new_rounds, skipped, hits_l1, hits_l2, hits_l3 = train(
+    learning, new_rounds, skipped, hits_l1, hits_l2, hits_l3, hits_l4 = train(
         draws, transitions, learning, verbose_every=args.verbose
     )
 
     save_learning(sorteo, learning)
     print(f"  ✓ Modelo guardado en tombola_{sorteo}_learning_v12.json")
 
-    print_summary(sorteo, new_rounds, skipped, hits_l1, hits_l2, hits_l3, learning)
+    print_summary(sorteo, new_rounds, skipped, hits_l1, hits_l2, hits_l3, hits_l4, learning)
 
 
 if __name__ == "__main__":

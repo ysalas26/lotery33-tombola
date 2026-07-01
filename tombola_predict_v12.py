@@ -3,16 +3,17 @@ tombola_predict_v12.py  ·  Versión 1.2
 ────────────────────────────────────────
 Mejoras sobre v1.1:
 
-1. PREDICCIÓN EN 3 CAPAS:
-   • Capa 1 (PRINCIPAL):   top 24 con factores aprendidos de Capa 1.
-   • Capa 2 (SECUNDARIA):  76 restantes → top 24 con factores propios de Capa 2.
-   • Capa 3 (TERCIARIA):   52 restantes → top 24 con factores propios de Capa 3.
-   • Resto final:          28 números de menor probabilidad.
+1. PREDICCIÓN EN 4 CAPAS:
+   • Capa 1 (PRINCIPAL):    top 24 con factores aprendidos de Capa 1.
+   • Capa 2 (SECUNDARIA):   76 restantes → top 24 con factores propios de Capa 2.
+   • Capa 3 (TERCIARIA):    52 restantes → top 24 con factores propios de Capa 3.
+   • Capa 4 (CUATERNARIA):  28 restantes → top 24 con factores propios de Capa 4.
+   • Resto final:            4 números de menor probabilidad.
 
 2. FACTORES POR CAPA:
    Cada capa aprende sus propios lift/bias a partir del entrenamiento.
-   Los números que habitualmente caen en Capa 2/3 reciben boosts específicos
-   en esas capas, mejorando la cobertura del resultado real.
+   Los números que habitualmente caen en cada capa reciben boosts específicos,
+   mejorando la cobertura del resultado real.
 
 3. SEÑALES MULTI-SALTO (requiere tombola_analysis_v12.py):
    next_day2_all y next_day3_all capturan patrones con brecha de 2 y 3 sorteos.
@@ -155,6 +156,7 @@ def load_learning(sorteo: str) -> dict:
             ("factors",     _df), ("biases",  _db), ("stats",  _ds),
             ("factors_l2",  _df), ("biases_l2", _db), ("stats_l2", _ds),
             ("factors_l3",  _df), ("biases_l3", _db), ("stats_l3", _ds),
+            ("factors_l4",  _df), ("biases_l4", _db), ("stats_l4", _ds),
             ("dow_factors", _ddowf), ("dow_biases", _ddowb),
         ]:
             if field not in data:
@@ -169,6 +171,8 @@ def load_learning(sorteo: str) -> dict:
         "stats_l2":    copy.deepcopy(_ds),
         "factors_l3":  copy.deepcopy(_df),  "biases_l3": copy.deepcopy(_db),
         "stats_l3":    copy.deepcopy(_ds),
+        "factors_l4":  copy.deepcopy(_df),  "biases_l4": copy.deepcopy(_db),
+        "stats_l4":    copy.deepcopy(_ds),
         "dow_factors": copy.deepcopy(_ddowf),
         "dow_biases":  copy.deepcopy(_ddowb),
         "history":     [],
@@ -476,12 +480,13 @@ def _compute_factors_from_weighted(wp: dict, wh: dict, appeared: dict) -> tuple[
 
 def recompute_learning_v12(history: list[dict]) -> tuple:
     """
-    Recalcula factores para las 3 capas de v1.2 con decay temporal.
+    Recalcula factores para las 4 capas de v1.2 con decay temporal.
 
     Retorna:
       (factors, biases, stats,
        factors_l2, biases_l2, stats_l2,
        factors_l3, biases_l3, stats_l3,
+       factors_l4, biases_l4, stats_l4,
        dow_factors, dow_biases)
     """
     completed = [h for h in history
@@ -492,6 +497,7 @@ def recompute_learning_v12(history: list[dict]) -> tuple:
     wp1 = defaultdict(float); wh1 = defaultdict(float)
     wp2 = defaultdict(float); wh2 = defaultdict(float)
     wp3 = defaultdict(float); wh3 = defaultdict(float)
+    wp4 = defaultdict(float); wh4 = defaultdict(float)
     appeared: dict = defaultdict(int)
 
     for i, entry in enumerate(completed):
@@ -518,9 +524,16 @@ def recompute_learning_v12(history: list[dict]) -> tuple:
                 if num in actual_set:
                     wh3[num] += w
 
+        for nums in entry.get("predicted_groups_l4", {}).values():
+            for num in nums:
+                wp4[num] += w
+                if num in actual_set:
+                    wh4[num] += w
+
     factors,    biases,    stats    = _compute_factors_from_weighted(wp1, wh1, appeared)
     factors_l2, biases_l2, stats_l2 = _compute_factors_from_weighted(wp2, wh2, appeared)
     factors_l3, biases_l3, stats_l3 = _compute_factors_from_weighted(wp3, wh3, appeared)
+    factors_l4, biases_l4, stats_l4 = _compute_factors_from_weighted(wp4, wh4, appeared)
 
     # DOW factors — calculados solo sobre Capa 1 (más datos)
     dow_factors = {str(d): dict(factors) for d in range(7)}
@@ -559,6 +572,7 @@ def recompute_learning_v12(history: list[dict]) -> tuple:
     return (factors,    biases,    stats,
             factors_l2, biases_l2, stats_l2,
             factors_l3, biases_l3, stats_l3,
+            factors_l4, biases_l4, stats_l4,
             dow_factors, dow_biases)
 
 
@@ -567,17 +581,18 @@ def recompute_learning_v12(history: list[dict]) -> tuple:
 # ──────────────────────────────────────────────
 
 _COMPACT_CONF = {
-    1: ("★★★", "ALTA CONFIANZA ", "Capa 1 — Principal  "),
-    2: ("★★ ", "CONFIANZA MEDIA", "Capa 2 — Secundaria "),
-    3: ("★  ", "BAJA CONFIANZA ", "Capa 3 — Terciaria  "),
+    1: ("★★★", "ALTA CONFIANZA ", "Capa 1 — Principal   "),
+    2: ("★★ ", "CONFIANZA MEDIA", "Capa 2 — Secundaria  "),
+    3: ("★  ", "BAJA CONFIANZA ", "Capa 3 — Terciaria   "),
+    4: ("·  ", "ZONA RESIDUAL  ", "Capa 4 — Cuaternaria "),
 }
 
 
-def print_compact_selection(groups1: dict, groups2: dict, groups3: dict,
+def print_compact_selection(groups1: dict, groups2: dict, groups3: dict, groups4: dict,
                              factors_l1: dict, factors_l2: dict,
-                             factors_l3: dict) -> None:
+                             factors_l3: dict, factors_l4: dict) -> None:
     """
-    Muestra 2 números por capa (6 en total) ordenados por confianza.
+    Muestra 2 números por capa (8 en total) ordenados por confianza.
 
     Cada número viene con score (señal de transición + lift aprendido)
     y el lift individual del modelo para esa capa.
@@ -587,16 +602,17 @@ def print_compact_selection(groups1: dict, groups2: dict, groups3: dict,
     """
     print()
     print("  " + "═" * 62)
-    print("  SELECCION COMPACTA  —  2 numeros por capa  (6 en total)")
+    print("  SELECCION COMPACTA  —  2 numeros por capa  (8 en total)")
     print("  " + "═" * 62)
 
     layer_data = [
         (1, groups1, factors_l1),
         (2, groups2, factors_l2),
         (3, groups3, factors_l3),
+        (4, groups4, factors_l4),
     ]
 
-    all6: list[str] = []
+    all8: list[str] = []
     for layer_num, groups, facts in layer_data:
         stars, conf_label, capa_label = _COMPACT_CONF[layer_num]
         elite = groups.get("elite_1", [])
@@ -606,7 +622,7 @@ def print_compact_selection(groups1: dict, groups2: dict, groups3: dict,
 
         n1, s1 = top2[0]; l1 = facts.get(n1, 1.0)
         n2, s2 = top2[1]; l2 = facts.get(n2, 1.0)
-        all6.extend([n1, n2])
+        all8.extend([n1, n2])
 
         s1_mk = "★" if s1 >= SCORE_HIGH else ("⚠" if s1 < SCORE_THRESHOLD else " ")
         s2_mk = "★" if s2 >= SCORE_HIGH else ("⚠" if s2 < SCORE_THRESHOLD else " ")
@@ -616,7 +632,7 @@ def print_compact_selection(groups1: dict, groups2: dict, groups3: dict,
               f"    {n2}{s2_mk}  score={s2:.3f}  lift={l2:.3f}")
 
     print()
-    print(f"  COMPACTO:  {' · '.join(all6)}")
+    print(f"  COMPACTO:  {' · '.join(all8)}")
     print("  " + "═" * 62)
     print()
 
@@ -632,7 +648,7 @@ GROUP_LABELS = {
     "elite_4": ("🔵", "GRUPO D", "confianza base — APOSTAR"),
 }
 DOW_NAMES = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
-LAYER_NAMES = {1: "PRINCIPAL", 2: "SECUNDARIA", 3: "TERCIARIA"}
+LAYER_NAMES = {1: "PRINCIPAL", 2: "SECUNDARIA", 3: "TERCIARIA", 4: "CUATERNARIA"}
 
 
 def fmt_group(items: list[tuple[str, float]], cols: int = 6, threshold: float = 0.0) -> str:
@@ -851,6 +867,7 @@ body{font-family:system-ui,sans-serif;background:#0f172a;color:#f8fafc;padding-b
 .tb.on[data-l="1"]{border-color:#fbbf24;color:#fbbf24;background:#422006}
 .tb.on[data-l="2"]{border-color:#94a3b8;color:#e2e8f0;background:#1e293b}
 .tb.on[data-l="3"]{border-color:#cd7c2f;color:#cd7c2f;background:#321d05}
+.tb.on[data-l="4"]{border-color:#22d3ee;color:#22d3ee;background:#082f3e}
 .lc{display:none;padding:16px 20px}
 .lc.on{display:block}
 .lh{font-size:1.1rem;font-weight:700;margin-bottom:14px;color:#fbbf24}
@@ -1055,7 +1072,7 @@ document.getElementById('h-meta').textContent=`v1.2 · ${D.rondas} rondas aprend
 document.getElementById('h-inp').textContent=`Entrada: ${D.input.join(' ')}`;
 
 // Tabs
-const tabL=['1','2','3'];const tabN=['PRINCIPAL','SECUNDARIA','TERCIARIA'];
+const tabL=['1','2','3','4'];const tabN=['PRINCIPAL','SECUNDARIA','TERCIARIA','CUATERNARIA'];
 document.getElementById('tabs').innerHTML=
   tabL.map((l,i)=>`<button class="tb${l==='1'?' on':''}" data-l="${l}" onclick="showLayer('${l}')">CAPA ${l} — ${tabN[i]}</button>`).join('');
 
@@ -1073,7 +1090,7 @@ document.getElementById('resto').innerHTML=
 
 def generate_html(sorteo: str, date_str: str, dow_name: str,
                   input_numbers: list, rondas: int,
-                  layer1: dict, layer2: dict, layer3: dict,
+                  layer1: dict, layer2: dict, layer3: dict, layer4: dict,
                   resto_final: list) -> str:
     import json as _json
     s_name = "Nocturna" if sorteo == "N" else "Vespertina"
@@ -1082,9 +1099,10 @@ def generate_html(sorteo: str, date_str: str, dow_name: str,
         "date": date_str, "dow": dow_name,
         "input": sorted(input_numbers), "rondas": rondas,
         "layers": [
-            {"num": 1, "name": "PRINCIPAL",  **layer1},
-            {"num": 2, "name": "SECUNDARIA", **layer2},
-            {"num": 3, "name": "TERCIARIA",  **layer3},
+            {"num": 1, "name": "PRINCIPAL",   **layer1},
+            {"num": 2, "name": "SECUNDARIA",  **layer2},
+            {"num": 3, "name": "TERCIARIA",   **layer3},
+            {"num": 4, "name": "CUATERNARIA", **layer4},
         ],
         "resto": [n for n, _ in resto_final],
     }
@@ -1127,11 +1145,13 @@ def cmd_predict(args):
         eff_factors_l1 = learning["factors"]
         eff_biases_l1  = learning["biases"]
 
-    # Factores propios de Capa 2 y 3
+    # Factores propios de Capa 2, 3 y 4
     eff_factors_l2 = learning.get("factors_l2", learning["factors"])
     eff_biases_l2  = learning.get("biases_l2",  learning["biases"])
     eff_factors_l3 = learning.get("factors_l3", learning["factors"])
     eff_biases_l3  = learning.get("biases_l3",  learning["biases"])
+    eff_factors_l4 = learning.get("factors_l4", learning["factors"])
+    eff_biases_l4  = learning.get("biases_l4",  learning["biases"])
 
     # ── Capa 1: 24 números principales ────────────────────────────────────────
     scores1 = compute_scores_v12(input_numbers, trans, eff_factors_l1, eff_biases_l1, dow)
@@ -1159,11 +1179,20 @@ def cmd_predict(args):
     groups3 = build_groups(ranked3, input_numbers, hl_stats_l3)
     used3   = used2 | _extract_used_from_groups(groups3)
 
+    # ── Capa 4: 24 de los 28 restantes con factores propios ───────────────────
+    scores4  = compute_scores_v12(input_numbers, trans, eff_factors_l4, eff_biases_l4, dow)
+    ranked4  = sorted([(n, scores4[n]) for n in scores4 if n not in used3],
+                      key=lambda x: x[1], reverse=True)
+    hl_stats_l4 = dict(learning.get("stats_l4", {}))
+    hl_stats_l4["__factors__"] = eff_factors_l4
+    groups4 = build_groups(ranked4, input_numbers, hl_stats_l4)
+    used4   = used3 | _extract_used_from_groups(groups4)
+
     # ranked combinado para co-ocurrencia (usa scores de Capa 1 como referencia)
     ranked = ranked1
 
-    # ── Resto final: 28 números ─────────────────────────────────────────────────
-    resto_final = [(n, s) for n, s in ranked if n not in used3]
+    # ── Resto final: 4 números ──────────────────────────────────────────────────
+    resto_final = [(n, s) for n, s in ranked if n not in used4]
 
     # Co-ocurrencia — solo con los 24 números de cada capa
     cooccur   = trans.get("cooccur", {})
@@ -1174,21 +1203,25 @@ def cmd_predict(args):
                        key=lambda x: x[1], reverse=True)
     ranked_l3 = sorted([(n, scores3[n]) for n in scores3 if n in (used3 - used2)],
                        key=lambda x: x[1], reverse=True)
+    ranked_l4 = sorted([(n, scores4[n]) for n in scores4 if n in (used4 - used3)],
+                       key=lambda x: x[1], reverse=True)
     cooccur_groups1 = build_groups_cooccur(ranked_l1, cooccur) if cooccur else None
     cooccur_groups2 = build_groups_cooccur(ranked_l2, cooccur) if cooccur else None
     cooccur_groups3 = build_groups_cooccur(ranked_l3, cooccur) if cooccur else None
+    cooccur_groups4 = build_groups_cooccur(ranked_l4, cooccur) if cooccur else None
 
     show_scores = not args.plain
 
     # ── Imprimir encabezado + selección compacta + 3 capas + resto ────────────
     print_prediction_header(sorteo, input_numbers, dow, learning)
     print_compact_selection(
-        groups1, groups2, groups3,
-        eff_factors_l1, eff_factors_l2, eff_factors_l3,
+        groups1, groups2, groups3, groups4,
+        eff_factors_l1, eff_factors_l2, eff_factors_l3, eff_factors_l4,
     )
     print_layer(1, groups1, show_scores, cooccur_groups1, score_map, cooccur)
     print_layer(2, groups2, show_scores, cooccur_groups2, score_map, cooccur)
     print_layer(3, groups3, show_scores, cooccur_groups3, score_map, cooccur)
+    print_layer(4, groups4, show_scores, cooccur_groups4, score_map, cooccur)
 
     print()
     print("  " + "─" * 58)
@@ -1208,9 +1241,10 @@ def cmd_predict(args):
         l1 = _build_layer_data(groups1, cooccur_groups1)
         l2 = _build_layer_data(groups2, cooccur_groups2)
         l3 = _build_layer_data(groups3, cooccur_groups3)
+        l4 = _build_layer_data(groups4, cooccur_groups4)
         html_str = generate_html(
             sorteo, args.date or date.today().isoformat(), dow_name,
-            input_numbers, len(learning["history"]), l1, l2, l3, resto_final
+            input_numbers, len(learning["history"]), l1, l2, l3, l4, resto_final
         )
         html_path = args.html
         with open(html_path, "w", encoding="utf-8") as fh:
@@ -1231,6 +1265,7 @@ def cmd_predict(args):
         "predicted_groups":    _pred_dict(groups1),
         "predicted_groups_l2": _pred_dict(groups2),
         "predicted_groups_l3": _pred_dict(groups3),
+        "predicted_groups_l4": _pred_dict(groups4),
         "actual":              None,
         "hits_per_group":      None,
         "hits_cumulative":     None,
@@ -1238,6 +1273,8 @@ def cmd_predict(args):
         "hits_cumulative_l2":  None,
         "hits_l3":             None,
         "hits_cumulative_l3":  None,
+        "hits_l4":             None,
+        "hits_cumulative_l4":  None,
     }
     history = learning["history"]
     idx = next((i for i, h in enumerate(history)
@@ -1249,7 +1286,7 @@ def cmd_predict(args):
         history.append(pending)
 
     save_learning(sorteo, learning)
-    print(f"  ✓ Predicción guardada (3 capas). Registra el resultado con `feedback`.")
+    print(f"  ✓ Predicción guardada (4 capas). Registra el resultado con `feedback`.")
     print()
 
 
@@ -1296,24 +1333,28 @@ def cmd_feedback(args):
     hpg1, hcum1 = _hits("predicted_groups")
     hpg2, hcum2 = _hits("predicted_groups_l2")
     hpg3, hcum3 = _hits("predicted_groups_l3")
+    hpg4, hcum4 = _hits("predicted_groups_l4")
 
     entry.update({
         "actual":             actual,
         "hits_per_group":     hpg1,  "hits_cumulative":     hcum1,
         "hits_l2":            hpg2,  "hits_cumulative_l2":  hcum2,
         "hits_l3":            hpg3,  "hits_cumulative_l3":  hcum3,
+        "hits_l4":            hpg4,  "hits_cumulative_l4":  hcum4,
     })
     history[idx] = entry
 
     (new_f,  new_b,  new_s,
      new_f2, new_b2, new_s2,
      new_f3, new_b3, new_s3,
+     new_f4, new_b4, new_s4,
      new_dof, new_dob) = recompute_learning_v12(history)
 
     learning.update({
         "factors":    new_f,   "biases":    new_b,   "stats":    new_s,
         "factors_l2": new_f2,  "biases_l2": new_b2,  "stats_l2": new_s2,
         "factors_l3": new_f3,  "biases_l3": new_b3,  "stats_l3": new_s3,
+        "factors_l4": new_f4,  "biases_l4": new_b4,  "stats_l4": new_s4,
         "dow_factors": new_dof, "dow_biases": new_dob,
     })
     save_learning(sorteo, learning)
@@ -1330,6 +1371,7 @@ def cmd_feedback(args):
         (1, hpg1, hcum1, "predicted_groups",    "Capa 1 PRINCIPAL"),
         (2, hpg2, hcum2, "predicted_groups_l2", "Capa 2 SECUNDARIA"),
         (3, hpg3, hcum3, "predicted_groups_l3", "Capa 3 TERCIARIA"),
+        (4, hpg4, hcum4, "predicted_groups_l4", "Capa 4 CUATERNARIA"),
     ]:
         total_pred  = entry.get(pred_key, {})
         all_pred    = set(n for g in total_pred.values() for n in g)
@@ -1346,7 +1388,7 @@ def cmd_feedback(args):
             print(f"    No predichos: {' '.join(missed)}")
         print()
 
-    print(f"  ✓ Factores de 3 capas actualizados (DECAY={DECAY}).")
+    print(f"  ✓ Factores de 4 capas actualizados (DECAY={DECAY}).")
     print("=" * 60)
     print()
 
@@ -1371,6 +1413,7 @@ def cmd_accuracy(args):
         (1, "hits_per_group",  "hits_cumulative",    "Capa 1 PRINCIPAL"),
         (2, "hits_l2",         "hits_cumulative_l2", "Capa 2 SECUNDARIA"),
         (3, "hits_l3",         "hits_cumulative_l3", "Capa 3 TERCIARIA"),
+        (4, "hits_l4",         "hits_cumulative_l4", "Capa 4 CUATERNARIA"),
     ]:
         # Solo rondas que tienen datos de esta capa
         layer_rows = [h for h in completed if h.get(hpg_key)]
@@ -1393,19 +1436,21 @@ def cmd_accuracy(args):
     hdr  = "  ".join(f"E{i+1}" for i in range(NUM_GROUPS))
     print()
     print(f"  Últimas {len(last)} rondas — hits por capa (acum E4):")
-    print(f"  {'Fecha':<12}  C1    C2    C3")
+    print(f"  {'Fecha':<12}  C1    C2    C3    C4")
     for h in last:
         def _total(key):
             d = h.get(key, {})
             return str(d.get(f"elite_{NUM_GROUPS}", "-")) if d else "-"
         print(f"  {h['date']:<12}  {_total('hits_cumulative'):>4}  "
-              f"{_total('hits_cumulative_l2'):>4}  {_total('hits_cumulative_l3'):>4}")
+              f"{_total('hits_cumulative_l2'):>4}  {_total('hits_cumulative_l3'):>4}  "
+              f"{_total('hits_cumulative_l4'):>4}")
 
     # Top lifts por capa
     for layer_name, fkey, skey in [
         ("Capa 1", "factors",    "stats"),
         ("Capa 2", "factors_l2", "stats_l2"),
         ("Capa 3", "factors_l3", "stats_l3"),
+        ("Capa 4", "factors_l4", "stats_l4"),
     ]:
         facts = learning.get(fkey, {}); st = learning.get(skey, {})
         reliable = [(k, facts[k], learning.get(fkey.replace("factors","biases"), {}).get(k, 0),
@@ -1431,8 +1476,8 @@ def cmd_history(args):
     history  = learning["history"][-args.last:]
     print()
     print(f"  HISTORIAL v1.2 {s_name} — últimas {len(history)} entradas")
-    print(f"  {'Fecha':<12}  C1(E4)  C2(E4)  C3(E4)   Estado")
-    print(f"  {'-'*12}  {'------  '*3}  ------")
+    print(f"  {'Fecha':<12}  C1(E4)  C2(E4)  C3(E4)  C4(E4)   Estado")
+    print(f"  {'-'*12}  {'------  '*4}  ------")
     for h in history:
         if h.get("actual") and h.get("hits_per_group"):
             def _t(key):
@@ -1441,11 +1486,12 @@ def cmd_history(args):
             c1 = _t("hits_cumulative")
             c2 = _t("hits_cumulative_l2")
             c3 = _t("hits_cumulative_l3")
+            c4 = _t("hits_cumulative_l4")
             estado = "✓"
         else:
-            c1 = c2 = c3 = "—"
+            c1 = c2 = c3 = c4 = "—"
             estado = "⏳ pendiente"
-        print(f"  {h['date']:<12}  {c1:>6}  {c2:>6}  {c3:>6}   {estado}")
+        print(f"  {h['date']:<12}  {c1:>6}  {c2:>6}  {c3:>6}  {c4:>6}   {estado}")
     print()
 
 
