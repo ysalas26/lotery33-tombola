@@ -184,6 +184,28 @@ def save_learning(sorteo: str, data: dict):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
+def _load_recent_sorteos(sorteo: str, n: int = 8) -> list:
+    """Carga las últimas n fechas del CSV para la tabla de ocurrencias en el HTML."""
+    import csv as _csv
+    csv_path = os.path.join(BASE_DIR, "tombolas.csv")
+    if not os.path.exists(csv_path):
+        return []
+    rows = []
+    with open(csv_path, encoding="utf-8") as f:
+        for row in _csv.reader(f):
+            if len(row) < 22:
+                continue
+            if row[1].strip().upper() != sorteo.upper():
+                continue
+            d = row[0].strip().strip('"')[:10]  # YYYY-MM-DD
+            try:
+                nums = [f"{int(row[i].strip()):02d}" for i in range(2, 22)]
+            except ValueError:
+                continue
+            rows.append({"date": d, "numbers": nums})
+    return rows[-n:]
+
+
 # ──────────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────────
@@ -922,6 +944,18 @@ table.vt td{padding:5px 6px;border-bottom:1px solid #0f172a;text-align:center}
 .bcp{background:#1d4ed8;color:#fff}
 .btn:hover{filter:brightness(1.1)}
 .resto{padding:16px 20px;color:#475569;font-size:.8rem}
+.ot{width:100%;border-collapse:collapse;font-size:.75rem}
+.ot th{padding:4px 6px;text-align:center;color:#64748b;font-weight:600;border-bottom:1px solid #334155;font-family:monospace;white-space:nowrap}
+.ot th.occ-hdr-num{text-align:left;padding-left:10px;color:#94a3b8}
+.ot th.occ-hdr-sum{color:#fbbf24}
+.ot td{padding:4px 5px;text-align:center;border-bottom:1px solid #0f172a;font-family:monospace}
+.ot td.occ-num{text-align:left;padding-left:10px;font-weight:700;cursor:pointer}
+.ot td.occ-num:hover{color:#fbbf24}
+.occ-hi{background:#1e3a5f33;color:#60a5fa}
+.occ-lo{color:#334155}
+.occ-sum{color:#fbbf24;font-weight:700}
+.occ-sum0{color:#334155}
+.occ-sep td{border-top:2px solid #1e293b;background:#0a111e;font-size:.65rem;color:#475569;font-family:sans-serif;font-weight:600;text-align:left;padding-left:10px}
 @media(max-width:800px){.gg{grid-template-columns:repeat(2,1fr)}.cg,.qg{grid-template-columns:1fr}}
 @media print{.selpanel,.tabs{display:none}.lc{display:block!important}}
 </style>
@@ -1002,6 +1036,30 @@ function comboNum(item){
   return `<div class="cb" data-n="${item.num}" style="background:${bg}" onclick="tog('${item.num}')">${item.num}<sup style="font-size:.55rem">${smk(item.score)}</sup></div>`;
 }
 
+function renderOccTable(lay){
+  if(!D.recent_sorteos||!D.recent_sorteos.length)return'';
+  const rs=D.recent_sorteos;
+  const sets=rs.map(s=>new Set(s.numbers));
+  const fmt=d=>{const p=d.split('-');return p[2]+'/'+p[1];};
+  const combos=[...lay.combinados_ab,...lay.combinados_cd];
+  const nc=rs.length+2;
+  let h=`<div class="sec"><div class="st">Historial de ocurrencias — últimas ${rs.length} fechas nocturnas</div><div style="overflow-x:auto"><table class="ot">`;
+  h+=`<tr><th class="occ-hdr-num">Nº</th>${rs.map(s=>`<th>${fmt(s.date)}</th>`).join('')}<th class="occ-hdr-sum">Σ</th></tr>`;
+  combos.forEach(combo=>{
+    h+=`<tr class="occ-sep"><td colspan="${nc}">C${combo.idx}</td></tr>`;
+    combo.nums.forEach(item=>{
+      const n=item.num;
+      const occs=sets.map(s=>s.has(n)?1:0);
+      const tot=occs.reduce((a,b)=>a+b,0);
+      h+=`<tr><td class="occ-num" data-n="${n}" onclick="tog('${n}')">${n}</td>`;
+      h+=occs.map(o=>`<td class="${o?'occ-hi':'occ-lo'}">${o}</td>`).join('');
+      h+=`<td class="${tot>0?'occ-sum':'occ-sum0'}">${tot}</td></tr>`;
+    });
+  });
+  h+=`</table></div></div>`;
+  return h;
+}
+
 function renderLayer(lay){
   const G=['A','B','C','D'];
   // Groups
@@ -1063,6 +1121,7 @@ function renderLayer(lay){
     ${renderCombos(lay.combinados_ab,'Combinados A+B — APOSTAR · click para seleccionar')}
     ${renderCombos(lay.combinados_cd,'Combinados C+D — APOSTAR · click para seleccionar')}
     ${qo}
+    ${renderOccTable(lay)}
   </div>`;
 }
 
@@ -1091,7 +1150,8 @@ document.getElementById('resto').innerHTML=
 def generate_html(sorteo: str, date_str: str, dow_name: str,
                   input_numbers: list, rondas: int,
                   layer1: dict, layer2: dict, layer3: dict, layer4: dict,
-                  resto_final: list) -> str:
+                  resto_final: list,
+                  recent_sorteos: list | None = None) -> str:
     import json as _json
     s_name = "Nocturna" if sorteo == "N" else "Vespertina"
     payload = {
@@ -1105,6 +1165,7 @@ def generate_html(sorteo: str, date_str: str, dow_name: str,
             {"num": 4, "name": "CUATERNARIA", **layer4},
         ],
         "resto": [n for n, _ in resto_final],
+        "recent_sorteos": recent_sorteos or [],
     }
     return _HTML_TEMPLATE.replace("DATA_JSON_PLACEHOLDER",
                                   _json.dumps(payload, ensure_ascii=False))
@@ -1242,9 +1303,11 @@ def cmd_predict(args):
         l2 = _build_layer_data(groups2, cooccur_groups2)
         l3 = _build_layer_data(groups3, cooccur_groups3)
         l4 = _build_layer_data(groups4, cooccur_groups4)
+        recent_sorteos = _load_recent_sorteos(sorteo, n=8)
         html_str = generate_html(
             sorteo, args.date or date.today().isoformat(), dow_name,
-            input_numbers, len(learning["history"]), l1, l2, l3, l4, resto_final
+            input_numbers, len(learning["history"]), l1, l2, l3, l4, resto_final,
+            recent_sorteos=recent_sorteos,
         )
         html_path = args.html
         with open(html_path, "w", encoding="utf-8") as fh:
